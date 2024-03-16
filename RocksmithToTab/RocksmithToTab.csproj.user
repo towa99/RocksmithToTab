@@ -10,4 +10,13 @@
     <FallbackCulture>de-DE</FallbackCulture>
     <VerifyUploadedFiles>false</VerifyUploadedFiles>
   </PropertyGroup>
+  <PropertyGroup>
+    <EnableSecurityDebugging>false</EnableSecurityDebugging>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <StartArguments>-f gpx -o "C:\Users\towa\RS Tabs" -n "{artist} - {title}" -r -i "C:\Program Files %28x86%29\Steam\SteamApps\common\Rocksmith2014\songs.psarc" "C:\Program Files %28x86%29\Steam\SteamApps\common\Rocksmith2014\dlc"</StartArguments>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <StartArguments>-f gpx -o "C:\Users\towa\RS Tabs" -n "{artist} - {title}" -r -i "C:\Program Files %28x86%29\Steam\SteamApps\common\Rocksmith2014\songs.psarc" "C:\Program Files %28x86%29\Steam\SteamApps\common\Rocksmith2014\dlc"</StartArguments>
+  </PropertyGroup>
 </Project>

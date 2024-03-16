@@ -15,62 +15,66 @@ namespace RocksmithToTab
         static void Main(string[] args)
         {
             // parse command line arguments
-            var options = new CmdOptions();
-            if (CommandLine.Parser.Default.ParseArguments(args, options))
+            CommandLine.ParserResult<CmdOptions> result = CommandLine.Parser.Default.ParseArguments<CmdOptions>(args);
+            CmdOptions options = result.Value;
+            if (options.InputFiles == null || options.InputFiles.Count == 0)
             {
-                if (options.InputFiles == null || options.InputFiles.Count == 0)
+                Console.Write(options.GetUsage(result));
+                return;
+            }
+
+            // collect a full file list from the inputs by doing a simple glob style
+            // file matching or by scanning a given directory for eligible files
+            List<string> inputFiles = new List<string>();
+            foreach (var input in options.InputFiles)
+            {
+                if (Directory.Exists(input))
+                    inputFiles.AddRange(ScanDirectory(input, options.Recursive));
+                else
+                    inputFiles.AddRange(SimpleGlob(input));
+            }
+
+            // create output dir, if necessary
+            Directory.CreateDirectory(options.OutputDirectory);
+
+            if (!options.XmlMode)
+            {
+                if (options.Incremental)
                 {
-                    Console.Write(options.GetUsage());
-                    return;
+                    // only process files which were modified since the last run, we do this
+                    // by comparing their last modified date against a timestamp file we store
+                    // in the output directory
+                    inputFiles = FilterOldFiles(inputFiles, options.OutputDirectory);
                 }
 
-                // collect a full file list from the inputs by doing a simple glob style
-                // file matching or by scanning a given directory for eligible files
-                List<string> inputFiles = new List<string>();
-                foreach (var input in options.InputFiles)
+                for (int i = 0; i < inputFiles.Count; ++i)
                 {
-                    if (Directory.Exists(input))
-                        inputFiles.AddRange(ScanDirectory(input, options.Recursive));
-                    else
-                        inputFiles.AddRange(SimpleGlob(input));
+                    string fileName = inputFiles[i];
+                    string baseFileName = Path.GetFileName(fileName);
+                    Console.WriteLine("[{1}/{2}] Opening archive {0} ...", baseFileName, i+1, inputFiles.Count);
+                    try
+                    {
+                        ExportPsarc(fileName, options);
+                    } catch (Exception e) {
+                        Console.WriteLine("Couldn't get Song list of '{0}'", baseFileName);
+                    }
                 }
 
-                // create output dir, if necessary
-                Directory.CreateDirectory(options.OutputDirectory);
-
-                if (!options.XmlMode)
+                if (inputFiles.Count == 0)
                 {
-                    if (options.Incremental)
-                    {
-                        // only process files which were modified since the last run, we do this
-                        // by comparing their last modified date against a timestamp file we store
-                        // in the output directory
-                        inputFiles = FilterOldFiles(inputFiles, options.OutputDirectory);
-                    }
-
-                    for (int i = 0; i < inputFiles.Count; ++i)
-                    {
-                        Console.WriteLine("[{1}/{2}] Opening archive {0} ...", Path.GetFileName(inputFiles[i]), i+1, inputFiles.Count);
-                        ExportPsarc(inputFiles[i], options);
-                    }
-
-                    if (inputFiles.Count == 0)
-                    {
-                        Console.WriteLine("All files up to date. Nothing to do :)");
-                    }
-                    else
-                    {
-                        // finally, create a timestamp file in the output directory for future reference
-                        var stream = File.CreateText(Path.Combine(options.OutputDirectory, ".rs2tab.timestamp"));
-                        stream.Write(System.DateTime.UtcNow);
-                        stream.Close();
-                    }
+                    Console.WriteLine("All files up to date. Nothing to do :)");
                 }
                 else
                 {
-                    ExportXml(inputFiles, options);
+                    // finally, create a timestamp file in the output directory for future reference
+                    var stream = File.CreateText(Path.Combine(options.OutputDirectory, ".rs2tab.timestamp"));
+                    stream.Write(System.DateTime.UtcNow);
+                    stream.Close();
                 }
-
+            }
+            else
+            {
+                ExportXml(inputFiles, options);
             }
         }
 
@@ -205,7 +209,13 @@ namespace RocksmithToTab
                     Console.WriteLine("({1}/{2}) Converting song {0} ...", song.Identifier, i+1, toConvert.Count);
                     foreach (var arr in arrangements)
                     {
-                        var arrangement = browser.GetArrangement(song.Identifier, arr);
+                        Song2014 arrangement = null;
+                        try {
+                            arrangement = browser.GetArrangement(song.Identifier, arr);
+                        } catch (Exception ex)
+                        {
+                            Console.WriteLine("Could not parse song '{0}'", ex.Message);
+                        }                        
                         if (arrangement == null)
                         {
                             Console.WriteLine(" Failed to get arrangement {0}", arr);
